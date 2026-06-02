@@ -73,6 +73,36 @@ def _load_config() -> dict:
     return config
 
 
+def _expand_env_var(value: str) -> str:
+    """Expand ${VAR} references in config values."""
+    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+        env_key = value[2:-1]
+        return os.environ.get(env_key, value)
+    return value
+
+
+def _load_dotenv(hermes_home: str = "") -> None:
+    """Load .env file from hermes_home into os.environ (no-op if already loaded)."""
+    if not hermes_home:
+        try:
+            from hermes_constants import get_hermes_home
+            hermes_home = str(get_hermes_home())
+        except Exception:
+            return
+    env_path = os.path.join(hermes_home, ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+
+
 def _resolve_llm_config(cfg: dict) -> dict:
     """Resolve LLM config — prefer explicit config, fall back to Hermes main config."""
     model = cfg.get("llm_model", "")
@@ -94,7 +124,7 @@ def _resolve_llm_config(cfg: dict) -> dict:
                         continue
                     if isinstance(pcfg, dict):
                         if not model:
-                            model = pcfg.get("model", "")
+                            model = pcfg.get("model", "") or pcfg.get("default_model", "")
                         if not base_url:
                             base_url = pcfg.get("base_url", "")
                         if not api_key:
@@ -103,6 +133,10 @@ def _resolve_llm_config(cfg: dict) -> dict:
                             break
         except Exception:
             pass
+
+    # Expand ${ENV_VAR} references in api_key and base_url
+    api_key = _expand_env_var(api_key)
+    base_url = _expand_env_var(base_url)
 
     return {"model": model, "base_url": base_url, "api_key": api_key}
 
@@ -259,6 +293,8 @@ class Mem0LocalMemoryProvider(MemoryProvider):
     def initialize(self, session_id: str, **kwargs) -> None:
         self._config = _load_config()
         self._user_id = kwargs.get("user_id") or self._config.get("user_id", "hermes-user")
+        # Load .env so ${VAR} references in provider config can be expanded
+        _load_dotenv(kwargs.get("hermes_home", ""))
         # Pre-warm the memory instance in background
         threading.Thread(target=self._get_memory, daemon=True, name="mem0-local-init").start()
 
