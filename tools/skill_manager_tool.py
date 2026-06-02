@@ -900,8 +900,15 @@ def skill_manage(
 SKILL_MANAGE_SCHEMA = {
     "name": "skill_manage",
     "description": (
-        "Manage skills (create, update, delete). Skills are your procedural "
-        "memory — reusable approaches for recurring task types. "
+        "Manage skills (create, update, delete). Skills are your PROCEDURAL KNOWLEDGE base \u2014 "
+        "reusable step-by-step approaches, formatting rules, and troubleshooting guides for "
+        "recurring task types. THIS is the correct target for anything involving steps, "
+        "workflows, or code formatting.\n\n"
+        "[ROUTING RULE] When the user says 'remember this', 'record this', 'note this', "
+        "or 'write this down', and the content involves ANY of the following, you MUST route "
+        "here (skill_manage), NOT to memory: formatting rules, multi-step procedures, "
+        "troubleshooting steps, or any reusable how-to knowledge. Only use 'memory' for "
+        "static declarative facts (name, OS, timezone, preferences). "
         f"New skills go to {display_hermes_home()}/skills/; existing skills can be modified wherever they live.\n\n"
         "Actions: create (full SKILL.md + optional category), "
         "patch (old_string/new_string — preferred for fixes), "
@@ -916,7 +923,8 @@ SKILL_MANAGE_SCHEMA = {
         "exist — create/patch the umbrella first, then delete.\n\n"
         "Create when: complex task succeeded (5+ calls), errors overcome, "
         "user-corrected approach worked, non-trivial workflow discovered, "
-        "or user asks you to remember a procedure.\n"
+        "user asks you to remember/record a procedure/format/rule/steps, "
+        "or the content is procedural knowledge rather than a static fact.\n"
         "Update when: instructions stale/wrong, OS-specific failures, "
         "missing steps or pitfalls found during use. "
         "If you used a skill and hit issues not covered by it, patch it immediately.\n\n"
