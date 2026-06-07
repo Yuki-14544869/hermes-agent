@@ -9,3 +9,9 @@
 
 ### Added (新增功能)
 - **Search**: 增加 SearXNG -> Brave Search -> DuckDuckGo 的容灾降级功能，并在降级发生时立刻通过 Socket 向 UI 广播状态转移通知。
+
+## [v0.16.0-elysia.0.3.0] - 2026-06-07
+
+### Added (新增功能)
+- **Gateway**: 为 Slack 连接保活机制引入 60 秒优雅退让宽限期，避免与 SDK 原生重连机制发生竞态。
+- **Gateway**: 捕获 SIGTERM 重启信号，触发拉起后广播 ♻️ Gateway online。
