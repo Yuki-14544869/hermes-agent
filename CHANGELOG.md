@@ -15,3 +15,8 @@
 ### Added (新增功能)
 - **Gateway**: 为 Slack 连接保活机制引入 60 秒优雅退让宽限期，避免与 SDK 原生重连机制发生竞态。
 - **Gateway**: 捕获 SIGTERM 重启信号，触发拉起后广播 ♻️ Gateway online。
+
+## [v0.16.0-elysia.0.3.1] - 2026-06-07
+
+### Fixed (问题修复)
+- **Middleware**: 修复 `PluginManager._middleware` 初始化时序错乱时的属性访问奔溃问题。
