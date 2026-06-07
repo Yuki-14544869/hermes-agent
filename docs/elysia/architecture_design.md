@@ -19,3 +19,8 @@
 ### 3. 网关保活与重启探测 (Gateway Resilience)
 - **优雅退让 (Grace Period)**：为 Slack Socket Watchdog 引入 60s 定时器 `asyncio.sleep(GRACE_PERIOD_SECONDS)`，如果在宽限期内底层自动重连成功，则 Watchdog 中止强杀干预，避免与 SDK 发生竞态。
 - **冷启动拦截**：在 `gateway/run.py` 补充捕获 OS 的 SIGTERM 逻辑，拉起 Socket 后向前端广播 ♻️ Gateway online 通知。
+
+## [v0.16.0-elysia.0.3.1] - 2026-06-07
+
+### 4. 中间件时序防护 (Middleware Shield)
+- **防呆处理**：通过安全访问层 (`getattr`) 为中间件链式拦截提供降级空字典处理，实现系统底层实例初始化时序错乱时的兜底保护。

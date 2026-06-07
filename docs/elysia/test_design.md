@@ -21,3 +21,10 @@
 **用例名称**：`test_watchdog_grace_period`
 - **操作步骤**：断开长连接观察 watchdog，在第 30 秒时模拟底层自动重连成功。
 - **预期结果**：Watchdog 识别到连接恢复，取消定时器，中止进程强杀重启流程。
+
+## [v0.16.0-elysia.0.3.1] - 2026-06-07
+
+### 4. 中间件崩溃拦截测试
+**用例名称**：`test_middleware_uninitialized_access`
+- **操作步骤**：构造未调用 `_init()` 初始化的 PluginManager 实例并直接访问 `middleware` 属性。
+- **预期结果**：实例不会抛出 `AttributeError` 异常，而是安全回落至空字典兜底。
