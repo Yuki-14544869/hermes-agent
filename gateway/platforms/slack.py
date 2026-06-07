@@ -377,6 +377,10 @@ class SlackAdapter(BasePlatformAdapter):
         self._socket_watchdog_task: Optional[asyncio.Task] = None
         self._socket_reconnect_lock = asyncio.Lock()
         self._socket_watchdog_interval_s = 15.0
+        # Grace period: let the SDK try to reconnect on its own
+        # before the watchdog forcibly restarts the handler.
+        self._disconnect_detected_at: Optional[float] = None
+        self._reconnect_grace_period_s: float = 60.0
 
     def _start_socket_mode_handler(self) -> None:
         """Start the Slack Socket Mode background task."""
@@ -451,6 +455,7 @@ class SlackAdapter(BasePlatformAdapter):
                 return
 
             logger.warning("[Slack] Socket Mode unhealthy (%s); reconnecting", reason)
+            self._disconnect_detected_at = None
             await self._stop_socket_mode_handler()
 
             try:
@@ -484,7 +489,30 @@ class SlackAdapter(BasePlatformAdapter):
 
                 connected = await self._socket_transport_connected()
                 if connected is False:
-                    await self._restart_socket_mode("transport disconnected")
+                    # Grace period: give the SDK time to reconnect
+                    # before forcibly restarting the handler.
+                    now = asyncio.get_event_loop().time()
+                    if self._disconnect_detected_at is None:
+                        self._disconnect_detected_at = now
+                        logger.debug(
+                            "[Slack] Transport disconnected;"
+                            " waiting %.0fs for SDK auto-reconnect",
+                            self._reconnect_grace_period_s,
+                        )
+                    elif (
+                        now - self._disconnect_detected_at
+                        >= self._reconnect_grace_period_s
+                    ):
+                        self._disconnect_detected_at = None
+                        await self._restart_socket_mode("transport disconnected")
+                elif connected is True:
+                    # SDK reconnected on its own — reset the timer.
+                    if self._disconnect_detected_at is not None:
+                        logger.info(
+                            "[Slack] Transport reconnected"
+                            " (SDK auto-recover); watchdog stand-down",
+                        )
+                    self._disconnect_detected_at = None
             except asyncio.CancelledError:
                 raise
             except Exception:  # pragma: no cover - defensive logging
@@ -1466,12 +1494,10 @@ class SlackAdapter(BasePlatformAdapter):
                                     "[Slack] Skipping missing image: %s", local_path
                                 )
                                 continue
-                            file_uploads.append(
-                                {
-                                    "file": local_path,
-                                    "filename": os.path.basename(local_path),
-                                }
-                            )
+                            file_uploads.append({
+                                "file": local_path,
+                                "filename": os.path.basename(local_path),
+                            })
                         else:
                             if not _is_safe_url(image_url):
                                 logger.warning(
@@ -1489,12 +1515,10 @@ class SlackAdapter(BasePlatformAdapter):
                                     ext = "gif"
                                 elif "webp" in ct:
                                     ext = "webp"
-                                file_uploads.append(
-                                    {
-                                        "content": response.content,
-                                        "filename": f"image_{len(file_uploads)}.{ext}",
-                                    }
-                                )
+                                file_uploads.append({
+                                    "content": response.content,
+                                    "filename": f"image_{len(file_uploads)}.{ext}",
+                                })
                             except Exception as dl_err:
                                 logger.warning(
                                     "[Slack] Download failed for %s: %s",
