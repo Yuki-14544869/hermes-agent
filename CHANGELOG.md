@@ -4,3 +4,8 @@
 
 ### Added (新增功能)
 - **Router**: 强化记忆与技能的路由约束，彻底解决过程性知识污染持久化状态的问题。
+
+## [v0.16.0-elysia.0.2.0] - 2026-06-07
+
+### Added (新增功能)
+- **Search**: 增加 SearXNG -> Brave Search -> DuckDuckGo 的容灾降级功能，并在降级发生时立刻通过 Socket 向 UI 广播状态转移通知。
