@@ -13,3 +13,9 @@
 ### 2. 容灾搜索体系 (Fallback Search Engine)
 - **搜索容灾**：采用链式调用架构。当调用 SearXNG 异常时，自动重定向至 Brave Search -> DuckDuckGo。
 - **状态驱动通信体系**：修改 `chat_completion_helpers.py`，触发 Fallback 时立即调用 `_emit_status()` 向 UI 推送降级事件。
+
+## [v0.16.0-elysia.0.3.0] - 2026-06-07
+
+### 3. 网关保活与重启探测 (Gateway Resilience)
+- **优雅退让 (Grace Period)**：为 Slack Socket Watchdog 引入 60s 定时器 `asyncio.sleep(GRACE_PERIOD_SECONDS)`，如果在宽限期内底层自动重连成功，则 Watchdog 中止强杀干预，避免与 SDK 发生竞态。
+- **冷启动拦截**：在 `gateway/run.py` 补充捕获 OS 的 SIGTERM 逻辑，拉起 Socket 后向前端广播 ♻️ Gateway online 通知。
