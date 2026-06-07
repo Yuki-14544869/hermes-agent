@@ -20,3 +20,8 @@
 
 ### Fixed (问题修复)
 - **Middleware**: 修复 `PluginManager._middleware` 初始化时序错乱时的属性访问奔溃问题。
+
+## [v0.16.0-elysia.1.0.0] - 2026-06-07
+
+### Added (新增功能)
+- **IaC**: 引入 `safe_update.sh` 与 `safe_push.sh` 脚本集群，构建起基于本地与远端的分支保护、脏工作区防呆、代码强制同步隔离的现代化运维开发闭环。

@@ -28,3 +28,8 @@
 **用例名称**：`test_middleware_uninitialized_access`
 - **操作步骤**：构造未调用 `_init()` 初始化的 PluginManager 实例并直接访问 `middleware` 属性。
 - **预期结果**：实例不会抛出 `AttributeError` 异常，而是安全回落至空字典兜底。
+
+## [v0.16.0-elysia.1.0.0] - 2026-06-07
+
+### 5. IaC 运维自动化链路测试
+- 通过在脏乱环境（含未跟踪凭证文件）中执行 `safe_push.sh` 与 `safe_update.sh`，验证隔离保护机制及自动拉取上游主干、推送至 fork 远程仓库的链路完整性。
