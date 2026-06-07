@@ -68,7 +68,9 @@ def _safe_copy(payload: Any) -> Any:
     try:
         return deepcopy(payload)
     except Exception as exc:  # pragma: no cover - exercised via fallback test
-        logger.debug("deepcopy failed for request payload (%s); using shallow copy", exc)
+        logger.debug(
+            "deepcopy failed for request payload (%s); using shallow copy", exc
+        )
         if isinstance(payload, dict):
             return dict(payload)
         return payload
@@ -234,7 +236,7 @@ def _has_middleware(kind: str) -> bool:
 def _get_middleware_callbacks(kind: str) -> List[Callable]:
     from hermes_cli.plugins import get_plugin_manager
 
-    return list(get_plugin_manager()._middleware.get(kind, []))
+    return list(getattr(get_plugin_manager(), "_middleware", {}).get(kind, []))
 
 
 def _run_execution_chain(
@@ -273,7 +275,9 @@ def _run_execution_chain(
                 )
             next_called = True
             try:
-                next_result = call_at(index + 1, payload if next_payload is None else next_payload)
+                next_result = call_at(
+                    index + 1, payload if next_payload is None else next_payload
+                )
                 next_succeeded = True
                 return next_result
             except Exception as exc:
