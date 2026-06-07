@@ -9,3 +9,8 @@
 - **预期结果**：
   - `memory_tool` 的 description 中包含 `DO NOT save procedural workflows` 字符串。
   - `skill_manage` 的 description 中包含 `ROUTING RULE` 相关的严格约束。
+
+## [v0.16.0-elysia.0.2.0] - 2026-06-07
+
+### 2. 搜索容灾网络连通性测试
+- 由于主要修改网络请求层，建议在集成环境中通过强制修改 hosts 切断主搜索引擎网络，进行连通性盲测验证容灾降级机制的无缝接管。
