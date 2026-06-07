@@ -1,0 +1,33 @@
+# Elysia-Pink-Realm (Hermes-Agent Fork) AI 协作与开发守则
+
+欢迎来到 Elysia 定制版 `hermes-agent` 代码库。作为 AI 助手，在对本仓库进行任何新特性开发、Bug 修复或上游（Upstream）Rebase 时，**必须严格遵守以下局部隔离规范**。
+
+## 1. 语义化版本号规范 (SemVer for Fork)
+本仓库采取 **"上游版本-定制后缀"** 的版本号控制体系，格式为：
+`v[Upstream-Version]-elysia.[x].[y].[z]`
+
+- **示例**：`v0.16.0-elysia.1.0.0`
+- **规则**：
+  - 新功能开发：递增最后一位或中间位（如 `1.1.0` 或 `1.0.1`）。
+  - 上游同步 (Rebase)：如果拉取了官方的新版本（如官方从 `0.16.0` 升到了 `0.17.0`），在解决完合并冲突后，必须将本仓库的版本号标头整体更新为 `v0.17.0-elysia.x.y.z`。
+
+## 2. “四大金刚”全局文档准则
+本仓库**严禁**为单个功能创建零散的说明书文件（禁止碎片化文档）。所有的新增设计和变更记录，必须以“追加盖楼”的形式写入以下 4 个全局统一文档：
+
+1. `CHANGELOG.md` (项目根目录)
+2. `docs/elysia/requirements_analysis.md` (需求分析)
+3. `docs/elysia/architecture_design.md` (架构设计)
+4. `docs/elysia/test_design.md` (测试设计)
+
+**写入要求**：每次提交新功能或 Rebase 升级时，必须在这 4 个文件的最下方，以最新的版本号锚点（如 `## [v0.16.0-elysia.1.1.0] - YYYY-MM-DD`）作为二级标题，追加相关内容。
+
+## 3. 分支管理与提交流程 (PR-Driven Workflow)
+- **绝对线性历史**：主干分支 `elysias-pink-realm` 必须保持绝对纯净。
+- **合并策略**：所有开发必须在新分支（如 `feat/xxx`）完成。向主干合并时，只允许使用 **Squash and Merge**（本地通过 `git merge --squash` 实现），确保主干上的每一个 Commit 都是一个内聚的、完整的独立特性。
+- **原子化提交**：代码的变动必须与上述 4 个全局文档的修改打包在同一个 Commit 中。
+
+## 4. Rebase 与上游同步 (Sync Protocol)
+在执行 `./scripts/elysia/safe_update.sh` 或手动同步上游主干时：
+1. **自动变基**：永远使用 `rebase` 而不是 `merge commit` 拉取上游代码。
+2. **冲突修复**：如果与上游代码发生冲突，AI 必须主动介入修复冲突，确保自定义的拦截逻辑和保活逻辑不被上游覆盖。
+3. **强制版本宣示**：即使 Rebase 没有发生冲突，只要上游底座版本更新，就必须触发一次额外的文档提交——在 `CHANGELOG.md` 中追加 `Sync with upstream vX.X.X` 的更新日志，并修改本地魔改的版本标头。
