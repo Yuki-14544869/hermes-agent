@@ -48,6 +48,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 # Where memory files live — resolved dynamically so profile overrides
 # (HERMES_HOME env var changes) are always respected.  The old module-level
 # constant was cached at import time and could go stale if a profile switch
@@ -55,6 +56,7 @@ logger = logging.getLogger(__name__)
 def get_memory_dir() -> Path:
     """Return the profile-scoped memories directory."""
     return get_hermes_home() / "memories"
+
 
 ENTRY_DELIMITER = "\n§\n"
 
@@ -160,8 +162,12 @@ class MemoryStore:
         # Sanitize entries for the system-prompt snapshot only.  Live state
         # (memory_entries / user_entries) keeps the raw text so the user
         # can see + remove poisoned entries via the memory tool.
-        sanitized_memory = self._sanitize_entries_for_snapshot(self.memory_entries, "MEMORY.md")
-        sanitized_user = self._sanitize_entries_for_snapshot(self.user_entries, "USER.md")
+        sanitized_memory = self._sanitize_entries_for_snapshot(
+            self.memory_entries, "MEMORY.md"
+        )
+        sanitized_user = self._sanitize_entries_for_snapshot(
+            self.user_entries, "USER.md"
+        )
 
         # Capture frozen snapshot for system prompt injection
         self._system_prompt_snapshot = {
@@ -193,7 +199,8 @@ class MemoryStore:
             if findings:
                 logger.warning(
                     "Memory entry from %s blocked at load time: %s",
-                    filename, ", ".join(findings),
+                    filename,
+                    ", ".join(findings),
                 )
                 sanitized.append(
                     f"[BLOCKED: {filename} entry contained threat pattern(s): "
@@ -319,7 +326,9 @@ class MemoryStore:
 
             # Reject exact duplicates
             if content in entries:
-                return self._success_response(target, "Entry already exists (no duplicate added).")
+                return self._success_response(
+                    target, "Entry already exists (no duplicate added)."
+                )
 
             # Calculate what the new total would be
             new_entries = entries + [content]
@@ -351,7 +360,10 @@ class MemoryStore:
         if not old_text:
             return {"success": False, "error": "old_text cannot be empty."}
         if not new_content:
-            return {"success": False, "error": "new_content cannot be empty. Use 'remove' to delete entries."}
+            return {
+                "success": False,
+                "error": "new_content cannot be empty. Use 'remove' to delete entries.",
+            }
 
         # Scan replacement content for injection/exfiltration
         scan_error = _scan_memory_content(new_content)
@@ -373,7 +385,9 @@ class MemoryStore:
                 # If all matches are identical (exact duplicates), operate on the first one
                 unique_texts = {e for _, e in matches}
                 if len(unique_texts) > 1:
-                    previews = [e[:80] + ("..." if len(e) > 80 else "") for _, e in matches]
+                    previews = [
+                        e[:80] + ("..." if len(e) > 80 else "") for _, e in matches
+                    ]
                     return {
                         "success": False,
                         "error": f"Multiple entries matched '{old_text}'. Be more specific.",
@@ -425,7 +439,9 @@ class MemoryStore:
                 # If all matches are identical (exact duplicates), remove the first one
                 unique_texts = {e for _, e in matches}
                 if len(unique_texts) > 1:
-                    previews = [e[:80] + ("..." if len(e) > 80 else "") for _, e in matches]
+                    previews = [
+                        e[:80] + ("..." if len(e) > 80 else "") for _, e in matches
+                    ]
                     return {
                         "success": False,
                         "error": f"Multiple entries matched '{old_text}'. Be more specific.",
@@ -483,9 +499,13 @@ class MemoryStore:
         pct = min(100, int((current / limit) * 100)) if limit > 0 else 0
 
         if target == "user":
-            header = f"USER PROFILE (who the user is) [{pct}% — {current:,}/{limit:,} chars]"
+            header = (
+                f"USER PROFILE (who the user is) [{pct}% — {current:,}/{limit:,} chars]"
+            )
         else:
-            header = f"MEMORY (your personal notes) [{pct}% — {current:,}/{limit:,} chars]"
+            header = (
+                f"MEMORY (your personal notes) [{pct}% — {current:,}/{limit:,} chars]"
+            )
 
         separator = "═" * 46
         return f"{separator}\n{header}\n{separator}\n{content}"
@@ -612,10 +632,15 @@ def memory_tool(
     Returns JSON string with results.
     """
     if store is None:
-        return tool_error("Memory is not available. It may be disabled in config or this environment.", success=False)
+        return tool_error(
+            "Memory is not available. It may be disabled in config or this environment.",
+            success=False,
+        )
 
     if target not in {"memory", "user"}:
-        return tool_error(f"Invalid target '{target}'. Use 'memory' or 'user'.", success=False)
+        return tool_error(
+            f"Invalid target '{target}'. Use 'memory' or 'user'.", success=False
+        )
 
     if action == "add":
         if not content:
@@ -624,18 +649,26 @@ def memory_tool(
 
     elif action == "replace":
         if not old_text:
-            return tool_error("old_text is required for 'replace' action.", success=False)
+            return tool_error(
+                "old_text is required for 'replace' action.", success=False
+            )
         if not content:
-            return tool_error("content is required for 'replace' action.", success=False)
+            return tool_error(
+                "content is required for 'replace' action.", success=False
+            )
         result = store.replace(target, old_text, content)
 
     elif action == "remove":
         if not old_text:
-            return tool_error("old_text is required for 'remove' action.", success=False)
+            return tool_error(
+                "old_text is required for 'remove' action.", success=False
+            )
         result = store.remove(target, old_text)
 
     else:
-        return tool_error(f"Unknown action '{action}'. Use: add, replace, remove", success=False)
+        return tool_error(
+            f"Unknown action '{action}'. Use: add, replace, remove", success=False
+        )
 
     return json.dumps(result, ensure_ascii=False)
 
@@ -652,19 +685,21 @@ def check_memory_requirements() -> bool:
 MEMORY_SCHEMA = {
     "name": "memory",
     "description": (
+        "[CRITICAL] DO NOT save procedural workflows, code formatting rules, troubleshooting steps, or multi-step procedures here. Use 'skill_manage' for those. ONLY use for STATIC DECLARATIVE facts (e.g., user is on macOS).\n\n"
         "Save durable information to persistent memory that survives across sessions. "
-        "Memory is injected into future turns, so keep it compact and focused on facts "
         "that will still matter later.\n\n"
         "WHEN TO SAVE (do this proactively, don't wait to be asked):\n"
         "- User corrects you or says 'remember this' / 'don't do that again'\n"
         "- User shares a preference, habit, or personal detail (name, role, timezone, coding style)\n"
         "- You discover something about the environment (OS, installed tools, project structure)\n"
-        "- You learn a convention, API quirk, or workflow specific to this user's setup\n"
+        "- You learn a convention, API quirk, or static configuration specific to this user's setup\n"
         "- You identify a stable fact that will be useful again in future sessions\n\n"
-        "PRIORITY: User preferences and corrections > environment facts > procedural knowledge. "
+        "PRIORITY: User preferences and corrections > environment facts. NO procedures. "
         "The most valuable memory prevents the user from having to repeat themselves.\n\n"
         "Do NOT save task progress, session outcomes, completed-work logs, or temporary TODO "
         "state to memory; use session_search to recall those from past transcripts.\n"
+        "Do NOT save procedures, workflows, multi-step instructions, or formatting rules \u2014 "
+        "those belong in 'skill_manage(action=create)'.\n"
         "If you've discovered a new way to do something, solved a problem that could be "
         "necessary later, save it as a skill with the skill tool.\n\n"
         "TWO TARGETS:\n"
@@ -672,7 +707,7 @@ MEMORY_SCHEMA = {
         "- 'memory': your notes -- environment facts, project conventions, tool quirks, lessons learned\n\n"
         "ACTIONS: add (new entry), replace (update existing -- old_text identifies it), "
         "remove (delete -- old_text identifies it).\n\n"
-        "SKIP: trivial/obvious info, things easily re-discovered, raw data dumps, and temporary task state."
+        "SKIP: trivial/obvious info, things easily re-discovered, raw data dumps, temporary task state, procedural knowledge, workflows, multi-step guides."
     ),
     "parameters": {
         "type": "object",
@@ -680,20 +715,20 @@ MEMORY_SCHEMA = {
             "action": {
                 "type": "string",
                 "enum": ["add", "replace", "remove"],
-                "description": "The action to perform."
+                "description": "The action to perform.",
             },
             "target": {
                 "type": "string",
                 "enum": ["memory", "user"],
-                "description": "Which memory store: 'memory' for personal notes, 'user' for user profile."
+                "description": "Which memory store: 'memory' for personal notes, 'user' for user profile.",
             },
             "content": {
                 "type": "string",
-                "description": "The entry content. Required for 'add' and 'replace'."
+                "description": "The entry content. Required for 'add' and 'replace'.",
             },
             "old_text": {
                 "type": "string",
-                "description": "Short unique substring identifying the entry to replace or remove."
+                "description": "Short unique substring identifying the entry to replace or remove.",
             },
         },
         "required": ["action", "target"],
@@ -713,11 +748,8 @@ registry.register(
         target=args.get("target", "memory"),
         content=args.get("content"),
         old_text=args.get("old_text"),
-        store=kw.get("store")),
+        store=kw.get("store"),
+    ),
     check_fn=check_memory_requirements,
     emoji="🧠",
 )
-
-
-
-
