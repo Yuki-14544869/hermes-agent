@@ -240,17 +240,17 @@ class TestAppMentionHandler:
         # covering every COMMAND_REGISTRY entry (e.g. /hermes, /btw, /stop,
         # /model, ...) so users get native-slash parity with Discord and
         # Telegram. Verify the regex matches the key expected slashes.
-        assert (
-            len(registered_commands) == 1
-        ), f"expected 1 combined slash matcher, got {registered_commands!r}"
+        assert len(registered_commands) == 1, (
+            f"expected 1 combined slash matcher, got {registered_commands!r}"
+        )
         slash_matcher = registered_commands[0]
         import re as _re
 
         assert isinstance(slash_matcher, _re.Pattern)
         for expected in ("/hermes", "/btw", "/stop", "/model", "/help"):
-            assert slash_matcher.match(
-                expected
-            ), f"Slack slash regex does not match {expected}"
+            assert slash_matcher.match(expected), (
+                f"Slack slash regex does not match {expected}"
+            )
 
 
 class TestSlackConnectCleanup:
@@ -456,6 +456,7 @@ class TestSlackSocketWatchdog:
     async def test_watchdog_reconnects_when_transport_reports_disconnected(self):
         adapter = SlackAdapter(PlatformConfig(enabled=True, token="xoxb-fake"))
         adapter._socket_watchdog_interval_s = 0.01
+        adapter._reconnect_grace_period_s = 0.05  # short grace for testing
         factory, instances = self._make_fake_handler_factory()
 
         with contextlib.ExitStack() as stack:
@@ -468,7 +469,8 @@ class TestSlackSocketWatchdog:
 
                 instances[0].client.is_connected = lambda: False
 
-                for _ in range(40):
+                # Wait longer than the grace period so the watchdog intervenes.
+                for _ in range(80):
                     if len(instances) >= 2:
                         break
                     await asyncio.sleep(0.01)
@@ -476,6 +478,67 @@ class TestSlackSocketWatchdog:
                 assert len(instances) >= 2, "watchdog did not heal dead transport"
                 assert instances[0].closed is True
                 assert adapter._handler is instances[-1]
+            finally:
+                await adapter.disconnect()
+
+    @pytest.mark.asyncio
+    async def test_watchdog_respects_grace_period_before_reconnect(self):
+        """Watchdog must NOT restart while SDK auto-reconnect is in progress."""
+        adapter = SlackAdapter(PlatformConfig(enabled=True, token="xoxb-fake"))
+        adapter._socket_watchdog_interval_s = 0.01
+        adapter._reconnect_grace_period_s = 10.0  # long grace — never expires in test
+        factory, instances = self._make_fake_handler_factory()
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patch_stack(factory):
+                stack.enter_context(p)
+
+            try:
+                assert await adapter.connect() is True
+                assert len(instances) == 1
+
+                # Simulate transport disconnect.
+                instances[0].client.is_connected = lambda: False
+
+                # Wait well beyond the watchdog interval but within grace period.
+                for _ in range(40):
+                    await asyncio.sleep(0.01)
+
+                # The watchdog must NOT have created a new handler yet.
+                assert len(instances) == 1, (
+                    "watchdog restarted handler during grace period"
+                )
+            finally:
+                await adapter.disconnect()
+
+    @pytest.mark.asyncio
+    async def test_watchdog_stand_down_when_sdk_recovers(self):
+        """Watchdog must clear its timer when SDK reconnects on its own."""
+        adapter = SlackAdapter(PlatformConfig(enabled=True, token="xoxb-fake"))
+        adapter._socket_watchdog_interval_s = 0.01
+        adapter._reconnect_grace_period_s = 0.05
+        factory, instances = self._make_fake_handler_factory()
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patch_stack(factory):
+                stack.enter_context(p)
+
+            try:
+                assert await adapter.connect() is True
+                assert len(instances) == 1
+
+                # Simulate transient disconnect.
+                instances[0].client.is_connected = lambda: False
+                await asyncio.sleep(0.03)
+
+                # SDK recovers before grace period expires.
+                instances[0].client.is_connected = lambda: True
+                await asyncio.sleep(0.1)
+
+                # Watchdog should NOT have restarted — only 1 handler instance.
+                assert len(instances) == 1, "watchdog restarted after SDK recovered"
+                # Timer should be cleared.
+                assert adapter._disconnect_detected_at is None
             finally:
                 await adapter.disconnect()
 
@@ -651,9 +714,9 @@ class TestSlackSocketWatchdog:
 
                 new_handlers = len(instances) - baseline
                 assert new_handlers >= 1
-                assert (
-                    new_handlers <= 2
-                ), f"reconnect lock failed: {new_handlers} new handlers"
+                assert new_handlers <= 2, (
+                    f"reconnect lock failed: {new_handlers} new handlers"
+                )
             finally:
                 await adapter.disconnect()
 
@@ -692,13 +755,11 @@ class TestSlackProxyBehavior:
             ) as excluded,
         ):
             assert _slack_mod._resolve_slack_proxy_url() is None
-            excluded.assert_has_calls(
-                [
-                    call("slack.com"),
-                    call("files.slack.com"),
-                    call("wss-primary.slack.com"),
-                ]
-            )
+            excluded.assert_has_calls([
+                call("slack.com"),
+                call("files.slack.com"),
+                call("wss-primary.slack.com"),
+            ])
 
     @pytest.mark.asyncio
     async def test_connect_uses_proxy_when_not_bypassed(self):
@@ -2734,23 +2795,19 @@ class TestAssistantThreadLifecycle:
         assistant_adapter._ASSISTANT_THREADS_MAX = 10
         # Fill to the limit
         for i in range(10):
-            assistant_adapter._cache_assistant_thread_metadata(
-                {
-                    "channel_id": f"D{i}",
-                    "thread_ts": f"{i}.000",
-                    "user_id": f"U{i}",
-                }
-            )
+            assistant_adapter._cache_assistant_thread_metadata({
+                "channel_id": f"D{i}",
+                "thread_ts": f"{i}.000",
+                "user_id": f"U{i}",
+            })
         assert len(assistant_adapter._assistant_threads) == 10
 
         # Adding one more should trigger eviction (down to max // 2 = 5)
-        assistant_adapter._cache_assistant_thread_metadata(
-            {
-                "channel_id": "D999",
-                "thread_ts": "999.000",
-                "user_id": "U999",
-            }
-        )
+        assistant_adapter._cache_assistant_thread_metadata({
+            "channel_id": "D999",
+            "thread_ts": "999.000",
+            "user_id": "U999",
+        })
         assert len(assistant_adapter._assistant_threads) <= 10
         # The newest entry must survive eviction
         assert ("D999", "999.000") in assistant_adapter._assistant_threads
@@ -3412,9 +3469,9 @@ class TestSlackReplyToText:
         ):
             await adapter._handle_slack_message(event)
 
-        assert (
-            adapter.handle_message.call_args is not None
-        ), "handle_message must be invoked for thread-reply DM"
+        assert adapter.handle_message.call_args is not None, (
+            "handle_message must be invoked for thread-reply DM"
+        )
         msg_event = adapter.handle_message.call_args[0][0]
         assert msg_event.reply_to_message_id == "1000.0"
         # The critical assertion: parent text is exposed as reply_to_text so the
