@@ -78,6 +78,18 @@ function getInitialLocale(): Locale {
   } catch {
     // SSR or privacy mode
   }
+  
+  if (typeof navigator !== "undefined" && navigator.language) {
+    const lang = navigator.language.toLowerCase();
+    if (lang.startsWith("zh")) {
+      return lang.includes("tw") || lang.includes("hk") || lang.includes("hant") ? "zh-hant" : "zh";
+    }
+    const shortLang = lang.split("-")[0];
+    if (isLocale(shortLang)) {
+      return shortLang as Locale;
+    }
+  }
+
   return "en";
 }
 
