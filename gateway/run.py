@@ -13671,7 +13671,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             except Exception as _footer_err:
                 logger.debug("runtime_footer build failed: %s", _footer_err)
                 _footer_line = ""
-            if _footer_line and response and not agent_result.get("already_sent") and not _intentional_silence:
+            if _footer_line and response and not _intentional_silence:
                 response = f"{response}\n\n{_footer_line}"
 
             # Emit agent:end hook
