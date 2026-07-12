@@ -10764,6 +10764,25 @@ def _run_prompt_submit(rid, sid: str, session: dict, text: Any) -> None:
                 )
 
                 raw = result.get("final_response", "")
+                # ── Runtime token footer (Desktop path) ──
+                # Mirror gateway/run.py's footer logic for tui_gateway,
+                # since Desktop doesn't go through GatewayRunner.
+                try:
+                    from gateway.runtime_footer import build_footer_line as _bfl
+                    from hermes_cli.config import load_config as _tui_load_cfg
+                    _footer_line = _bfl(
+                        user_config=_tui_load_cfg(),
+                        platform_key="desktop",
+                        model=result.get("model"),
+                        context_tokens=result.get("last_prompt_tokens", 0) or 0,
+                        context_length=result.get("context_length") or None,
+                        cwd=os.environ.get("TERMINAL_CWD", ""),
+                        session_id=sid,
+                    )
+                    if _footer_line and raw:
+                        raw = f"{raw}\n\n{_footer_line}"
+                except Exception:
+                    pass
                 status = (
                     "interrupted"
                     if result.get("interrupted")

@@ -13657,6 +13657,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             # streaming already delivered the body, we can't mutate the sent
             # text, so we fire a separate trailing send below.
             _footer_line = ""
+            logger.info("FOOTER_DEBUG: entering footer build, source.platform=%s, already_sent=%s", getattr(source, 'platform', '?'), agent_result.get("already_sent"))
             try:
                 from gateway.runtime_footer import build_footer_line as _bfl
                 _footer_line = _bfl(
