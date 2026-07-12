@@ -20599,6 +20599,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     context_length=agent_result.get("context_length") or None,
                     cwd=os.environ.get("TERMINAL_CWD", ""),
                     turn_seconds=_turn_seconds,
+                    session_id=(session_entry.session_id if session_entry else None) or agent_result.get("session_id"),
                 )
             except Exception as _footer_err:
                 logger.debug("runtime_footer build failed: %s", _footer_err)
