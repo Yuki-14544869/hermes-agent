@@ -25,11 +25,95 @@ piecemeal, the footer is sent as a separate trailing message via
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+import sqlite3
 from typing import Any, Iterable, Optional
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_FIELDS: tuple[str, ...] = ("model", "context_pct", "cwd")
 _SEP = " · "
+
+_DB_PATH = os.path.expanduser("~/.hermes/state.db")
+_SNAPSHOT_PATH = os.path.expanduser("~/.hermes/.token_ticker_snapshot.json")
+
+
+def _fmt_compact(value: int) -> str:
+    """Compact thousands formatting: 1234 -> 1.2k, 1234567 -> 1.2M."""
+    if abs(value) >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if abs(value) >= 1_000:
+        return f"{value / 1_000:.1f}k"
+    return str(value)
+
+
+def _get_turn_delta(session_id: str) -> Optional[tuple[int, int, int]]:
+    """Compute per-turn token delta via snapshot comparison.
+
+    Reads session_model_usage, compares with last snapshot, updates snapshot.
+    Returns (delta_in, delta_out, delta_cache_read) or None on failure.
+    """
+    if not os.path.exists(_DB_PATH):
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{_DB_PATH}?mode=ro", uri=True)
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT model, api_call_count, input_tokens, output_tokens, "
+                "cache_read_tokens FROM session_model_usage "
+                "WHERE session_id = ? ORDER BY last_seen",
+                (session_id,),
+            )
+            current = [
+                {"model": r[0], "calls": r[1] or 0, "in": r[2] or 0,
+                 "out": r[3] or 0, "cache_r": r[4] or 0}
+                for r in cur.fetchall()
+            ]
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        logger.debug("token footer: db read failed: %s", exc)
+        return None
+
+    if not current:
+        return None
+
+    previous: list[dict] = []
+    if os.path.exists(_SNAPSHOT_PATH):
+        try:
+            snap = json.loads(open(_SNAPSHOT_PATH).read())
+            if snap.get("session_id") == session_id:
+                previous = snap.get("usage", [])
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    prev_map: dict[str, dict] = {r["model"]: r for r in previous}
+    d_in = d_out = d_cr = 0
+    for row in current:
+        prev = prev_map.get(
+            row["model"],
+            {"calls": 0, "in": 0, "out": 0, "cache_r": 0},
+        )
+        di = row["in"] - prev["in"]
+        do = row["out"] - prev["out"]
+        dcr = row["cache_r"] - prev["cache_r"]
+        if di > 0 or do > 0:
+            d_in += di
+            d_out += do
+            d_cr += max(0, dcr)
+
+    try:
+        with open(_SNAPSHOT_PATH, "w") as f:
+            json.dump({"session_id": session_id, "usage": current}, f)
+    except OSError:
+        pass
+
+    if d_in == 0 and d_out == 0:
+        return None
+    return d_in, d_out, d_cr
 
 
 def _home_relative_cwd(cwd: str) -> str:
@@ -95,6 +179,7 @@ def format_runtime_footer(
     context_length: Optional[int],
     cwd: Optional[str] = None,
     fields: Iterable[str] = _DEFAULT_FIELDS,
+    **kwargs: Any,
 ) -> str:
     """Render the footer line, or return "" if no fields have data.
 
@@ -115,6 +200,18 @@ def format_runtime_footer(
             rel = _home_relative_cwd(cwd or os.environ.get("TERMINAL_CWD", ""))
             if rel:
                 parts.append(rel)
+        elif field == "token":
+            # Per-turn token delta via snapshot comparison.
+            # session_id passed via closure from build_footer_line.
+            _sid = kwargs.get("session_id") if kwargs else None
+            if _sid:
+                delta = _get_turn_delta(_sid)
+                if delta:
+                    di, do, dcr = delta
+                    _total_in = di + dcr
+                    _pct = (dcr / _total_in * 100) if _total_in > 0 else 0
+                    _cache_str = f" cache {_pct:.0f}%" if dcr > 0 else ""
+                    parts.append(f"↑{_fmt_compact(di)}/↓{_fmt_compact(do)}{_cache_str}")
         # Unknown field names are silently ignored.
 
     if not parts:
@@ -130,6 +227,7 @@ def build_footer_line(
     context_tokens: int,
     context_length: Optional[int],
     cwd: Optional[str] = None,
+    session_id: Optional[str] = None,
 ) -> str:
     """Top-level entry point used by gateway/run.py.
 
@@ -146,4 +244,5 @@ def build_footer_line(
         context_length=context_length,
         cwd=cwd,
         fields=cfg.get("fields") or _DEFAULT_FIELDS,
+        session_id=session_id,
     )
